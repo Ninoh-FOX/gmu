@@ -1,0 +1,7 @@
+{
+"label":"Gmu",
+"icon":"logo.png",
+"iconsel":"logo_sel.png",
+"launch":"launch.sh",
+"description":"Media player - mp3, ogg, flac, opus & more"
+}
