@@ -17,9 +17,9 @@
 #include <stdlib.h>
 #include "SDL.h"
 #include "SDL_thread.h"
-#include "SDL_image.h"
+#include "SDL/SDL_image.h"
 #ifndef SDLFE_WITHOUT_SDL_GFX
-#include "SDL_rotozoom.h"
+#include "SDL/SDL_rotozoom.h"
 #endif
 #include "coverimg.h"
 #include "../../png.h"

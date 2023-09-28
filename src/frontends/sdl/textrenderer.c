@@ -16,7 +16,7 @@
 #include <string.h>
 #include "textrenderer.h"
 #include "SDL.h"
-#include "SDL_image.h"
+#include "SDL/SDL_image.h"
 #include "charset.h"
 
 int textrenderer_init(TextRenderer *tr, char *chars_file, int chwidth, int chheight)

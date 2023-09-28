@@ -14,7 +14,7 @@
  * for details.
  */
 #include "SDL.h"
-#include "SDL_image.h"
+#include "SDL/SDL_image.h"
 #include "charset.h"
 
 #ifndef GMU_TEXTRENDERER_H

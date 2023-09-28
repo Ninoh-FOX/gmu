@@ -19,7 +19,7 @@
 #include <time.h>
 #include <pthread.h>
 #include "SDL.h"
-#include "SDL_image.h"
+#include "SDL/SDL_image.h"
 #include "../../util.h"
 #include "../../gmufrontend.h"
 #include "../../core.h"
