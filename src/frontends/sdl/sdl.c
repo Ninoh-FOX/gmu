@@ -18,7 +18,7 @@
 #include <string.h>
 #include <time.h>
 #include <pthread.h>
-#include "SDL.h"
+#include "SDL/SDL.h"
 #include "SDL/SDL_image.h"
 #include "../../util.h"
 #include "../../gmufrontend.h"

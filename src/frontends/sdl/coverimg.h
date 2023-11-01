@@ -13,8 +13,8 @@
  * the License. See the file COPYING in the Gmu's main directory
  * for details.
  */
-#include "SDL.h"
-#include "SDL_thread.h"
+#include "SDL/SDL.h"
+#include "SDL/SDL_thread.h"
 
 #ifndef _COVERIMG_H
 #define _COVERIMG_H

@@ -14,7 +14,7 @@
  * for details.
  */
 #include <math.h>
-#include "SDL.h"
+#include "SDL/SDL.h"
 #include "ringbuffer.h"
 #include "audio.h"
 #include "fmath.h"
@@ -333,7 +333,7 @@ void audio_device_close(void)
 	}
 }
 
-static const int volume_array[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 16, 24, 32, 48, 64, 96, 128, 160, 192, 224 };
+static const int volume_array[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 16, 24, 32, 48, 64, 96, 128 };
 
 void audio_set_volume(int vol) /* 0..AUDIO_MAX_SW_VOLUME */
 {

@@ -15,7 +15,7 @@
  */
 #include <string.h>
 #include "textrenderer.h"
-#include "SDL.h"
+#include "SDL/SDL.h"
 #include "SDL/SDL_image.h"
 #include "charset.h"
 

@@ -19,37 +19,64 @@
 #include "hw_miyoo.h"
 
 static int selected_mixer = -1;
-static int display_on_value = 100;
 
 void hw_display_off(void)
 {
-	char  tmp[5];
-	FILE *f;
-	int   display_on_value_tmp = 0;
+    wdprintf(V_DEBUG, "hw_miyoo", "Display off requested.\n");
 
-	wdprintf(V_DEBUG, "hw_miyoo", "Display off requested.\n");
-	if ((f = fopen("/sys/class/pwm/pwmchip0/pwm0/duty_cycle", "r"))) { /* Old kernel */
-		if (fgets(tmp, 4, f)) display_on_value_tmp = atoi(tmp);
-		fclose(f);
-		if (display_on_value_tmp > 0) display_on_value = display_on_value_tmp;
-		if ((f = fopen("/sys/class/pwm/pwmchip0/pwm0/duty_cycle", "w"))) {
-			fprintf(f, "0\n");
-			fclose(f);
-		}
-	}
+    FILE *file;
+
+    if ((file = fopen("/sys/class/gpio/export", "w"))) {
+        fprintf(file, "4\n");
+        fclose(file);
+    }
+
+    if ((file = fopen("/sys/class/gpio/gpio4/direction", "w"))) {
+        fprintf(file, "out\n");
+        fclose(file);
+    }
+
+    if ((file = fopen("/sys/class/gpio/gpio4/value", "w"))) {
+        fprintf(file, "0\n");
+        fclose(file);
+    }
+
+    if ((file = fopen("/sys/class/pwm/pwmchip0/pwm0/enable", "w"))) {
+        fprintf(file, "0\n");
+        fclose(file);
+    }
+
+    if ((file = fopen("/proc/mi_modules/fb/mi_fb0", "w"))) {
+        fprintf(file, "GUI_SHOW 0 off\n");
+        fclose(file);
+    }
 }
 
 void hw_display_on(void)
 {
-	FILE *f;
+    wdprintf(V_DEBUG, "hw_miyoo", "Display on requested.\n");
 
-	wdprintf(V_DEBUG, "hw_miyoo", "Display on requested.\n");
-	if (display_on_value > 0) {
-		if ((f = fopen("/sys/class/pwm/pwmchip0/pwm0/duty_cycle", "w"))) {
-			fprintf(f, "%d\n", display_on_value);
-			fclose(f);
-		}
-	}
+    FILE *file;
+
+    if ((file = fopen("/proc/mi_modules/fb/mi_fb0", "w"))) {
+        fprintf(file, "GUI_SHOW 0 on\n");
+        fclose(file);
+    }
+
+    if ((file = fopen("/sys/class/gpio/gpio4/value", "w"))) {
+        fprintf(file, "1\n");
+        fclose(file);
+    }
+
+    if ((file = fopen("/sys/class/gpio/unexport", "w"))) {
+        fprintf(file, "4\n");
+        fclose(file);
+    }
+
+    if ((file = fopen("/sys/class/pwm/pwmchip0/pwm0/enable", "w"))) {
+        fprintf(file, "1\n");
+        fclose(file);
+    }
 }
 
 int hw_open_mixer(int mixer_channel)

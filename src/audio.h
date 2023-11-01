@@ -14,7 +14,7 @@
  * for details.
  */
 #define MIN_BUFFER_FILL 32768
-#define AUDIO_MAX_SW_VOLUME 19
+#define AUDIO_MAX_SW_VOLUME 16
 #ifndef _AUDIO_H
 #define _AUDIO_H
 #include <sys/types.h>
@@ -32,7 +32,7 @@ int      audio_get_status(void);
 void     audio_force_pause(int pause);
 int      audio_set_pause(int pause_state);
 int      audio_get_pause(void);
-void     audio_set_volume(int vol); /* 0..18 */
+void     audio_set_volume(int vol); /* 0..15 */
 int      audio_get_volume(void);
 long     audio_set_sample_counter(long sample);
 long     audio_increase_sample_counter(long sample_offset);

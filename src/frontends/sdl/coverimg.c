@@ -15,8 +15,8 @@
  */
 #include <string.h>
 #include <stdlib.h>
-#include "SDL.h"
-#include "SDL_thread.h"
+#include "SDL/SDL.h"
+#include "SDL/SDL_thread.h"
 #include "SDL/SDL_image.h"
 #ifndef SDLFE_WITHOUT_SDL_GFX
 #include "SDL/SDL_rotozoom.h"

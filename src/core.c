@@ -19,7 +19,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <signal.h>
-#include "SDL.h" /* For audio output */
+#include "SDL/SDL.h" /* For audio output */
 #include "playlist.h"
 #include "pbstatus.h"
 #include "fileplayer.h"
