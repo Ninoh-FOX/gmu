@@ -17,6 +17,8 @@ Q?=@
 STATIC?=0
 include config.mk
 
+DECODERS_TO_BUILD += decoders/gsf.so
+
 PREFIX?=/usr/local
 
 # Most flags recommended by the Compiler Options Hardening Guide at
@@ -247,6 +249,55 @@ decoders/%.o: src/decoders/%.c | decodersdir
 %.o: src/decoders/%.c
 	@echo "Compiling \033[1m$<\033[0m"
 	$(Q)$(CC) -fPIC $(CFLAGS) -DGMU_REGISTER_DECODER=$(DECODER_PLUGIN_LOADER_FUNCTION) -Isrc/ -c -o $@ $<
+	
+# ==========================================
+# Decodificador PlayGSF (Motor GBA nativo)
+# ==========================================
+CXX_MIYOO = /opt/miyoomini-toolchain/usr/bin/arm-linux-gnueabihf-g++
+CC_MIYOO  = /opt/miyoomini-toolchain/usr/bin/arm-linux-gnueabihf-gcc
+
+# Añadimos -DNO_ASM y -DC_CORE para desactivar el ensamblador y forzar el emulador en C puro.
+GSF_CFLAGS   = -O3 -ffast-math -mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4 -fPIC -Wall -Isrc/decoders/playgsf_core -Isrc/decoders/playgsf_core/VBA -Isrc/decoders/playgsf_core/libresample-0.1.3/include -DC_CORE -DNO_ASM -DLINUX
+GSF_CXXFLAGS = $(GSF_CFLAGS) -Wno-narrowing -fpermissive -DGMU_REGISTER_DECODER=$(DECODER_PLUGIN_LOADER_FUNCTION)
+
+# Archivos fuente en C puro (remuestreo, ZIP antiguo, etc)
+PLAYGSF_C_SRCS = $(wildcard src/decoders/playgsf_core/*.c src/decoders/playgsf_core/VBA/*.c src/decoders/playgsf_core/libresample-0.1.3/src/*.c)
+PLAYGSF_C_SRCS := $(filter-out src/decoders/playgsf_core/main.c src/decoders/playgsf_core/linuxmain.cpp, $(PLAYGSF_C_SRCS))
+
+# Archivos fuente en C++ (Emulador ARM, sonido y puente Gmu)
+PLAYGSF_CPP_SRCS = $(wildcard src/decoders/playgsf_core/*.cpp src/decoders/playgsf_core/VBA/*.cpp)
+PLAYGSF_CPP_SRCS := $(filter-out src/decoders/playgsf_core/linuxmain.cpp src/decoders/playgsf_core/loadpic.cpp, $(PLAYGSF_CPP_SRCS))
+
+# Lista de todos los objetos a generar
+PLAYGSF_OBJS = $(PLAYGSF_C_SRCS:.c=.o) $(PLAYGSF_CPP_SRCS:.cpp=.o)
+
+# -- REGLAS DE COMPILACIÓN SEPARADAS (C va a GCC, C++ va a G++) --
+
+src/decoders/playgsf_core/%.o: src/decoders/playgsf_core/%.c
+	@echo "Compilando C: $<"
+	$(Q)$(CC_MIYOO) $(GSF_CFLAGS) -c $< -o $@
+
+src/decoders/playgsf_core/VBA/%.o: src/decoders/playgsf_core/VBA/%.c
+	@echo "Compilando C: $<"
+	$(Q)$(CC_MIYOO) $(GSF_CFLAGS) -c $< -o $@
+
+src/decoders/playgsf_core/libresample-0.1.3/src/%.o: src/decoders/playgsf_core/libresample-0.1.3/src/%.c
+	@echo "Compilando C: $<"
+	$(Q)$(CC_MIYOO) $(GSF_CFLAGS) -c $< -o $@
+
+src/decoders/playgsf_core/%.o: src/decoders/playgsf_core/%.cpp
+	@echo "Compilando C++: $<"
+	$(Q)$(CXX_MIYOO) $(GSF_CXXFLAGS) -c $< -o $@
+
+src/decoders/playgsf_core/VBA/%.o: src/decoders/playgsf_core/VBA/%.cpp
+	@echo "Compilando C++: $<"
+	$(Q)$(CXX_MIYOO) $(GSF_CXXFLAGS) -c $< -o $@
+
+# -- LINKADO FINAL --
+decoders/gsf.so: $(PLAYGSF_OBJS) | decodersdir
+	@echo "Enlazando \033[1m$@\033[0m (C++ native GBA decoder)"
+	$(Q)$(CXX_MIYOO) -shared -o $@ $^ -lstdc++ -lz -lpthread
+# ==========================================
 
 frontends/sdl.so: $(PLUGIN_FE_sdl_OBJECTFILES) | frontendsdir
 	@echo "Linking \033[1m$@\033[0m"

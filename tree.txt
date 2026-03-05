@@ -1,0 +1,453 @@
+.
+├── build_miyoo.sh
+├── BUILD.txt
+├── caanoo.keymap
+├── config.mk
+├── configure
+├── COPYING
+├── decoders
+├── default.keymap
+├── dingux.keymap
+├── frontends
+├── gmu.bmp
+├── gmu.caanoo.conf
+├── gmu-caanoo.gpu
+├── gmu.desktop
+├── gmu.dge
+├── gmu.dingux.conf
+├── gmu.gp2x.conf
+├── gmu-gp2x.gpu
+├── gmuinput.caanoo.conf
+├── gmuinput.conf
+├── gmuinput.dingux.conf
+├── gmuinput.gp2x.conf
+├── gmuinput.miyoo.conf
+├── gmuinput.nanonote.conf
+├── gmuinput.pandora.conf
+├── gmuinput.pre.conf
+├── gmuinput.unknown.conf
+├── gmuinput.wiz.conf
+├── gmuinput.zipit-z2.conf
+├── gmu.miyoo.conf
+├── gmu.nanonote.conf
+├── gmu-nanonote.sh
+├── gmu.pandora.conf
+├── gmu-pandora.sh
+├── gmu.png
+├── gmu.pre.conf
+├── gmu.sh
+├── gmu.unknown.conf
+├── gmu.wiz.conf
+├── gmu-wiz.gpu
+├── gmu-z2.sh
+├── gmu.zipit-z2.conf
+├── gp2x-f100.keymap
+├── gp2x-f200.keymap
+├── gp2x.keymap
+├── htdocs
+│   ├── bg.png
+│   ├── gmu.html
+│   ├── gmu.png
+│   ├── icon_next.png
+│   ├── icon_pause.png
+│   ├── icon_play.png
+│   ├── icon_prev.png
+│   ├── icon_stop.png
+│   ├── script.js
+│   └── style.css
+├── links-alike.keymap
+├── Makefile
+├── miyoo.keymap
+├── nanonote.keymap
+├── no_stick.keymap
+├── pagescroll.keymap
+├── pandora.keymap
+├── pre.keymap
+├── PXML.xml
+├── README.md
+├── skel.miyoo
+│   ├── cpufreq.sh
+│   ├── decoders
+│   │   ├── flac.so
+│   │   ├── gme.so
+│   │   ├── modplug.so
+│   │   ├── mpg123.so
+│   │   ├── openmpt.so
+│   │   ├── opus.so
+│   │   ├── speex.so
+│   │   ├── vorbis.so
+│   │   └── wavpack.so
+│   ├── default.keymap
+│   ├── frontends
+│   │   ├── gmuhttp.so
+│   │   ├── lirc.so
+│   │   ├── log.so
+│   │   └── sdl.so
+│   ├── gmu.bmp
+│   ├── gmuinput.conf
+│   ├── gmuinput.miyoo.conf
+│   ├── gmu.miyoo.conf
+│   ├── gmu.png
+│   ├── htdocs
+│   │   ├── bg.png
+│   │   ├── gmu.html
+│   │   ├── gmu.png
+│   │   ├── icon_next.png
+│   │   ├── icon_pause.png
+│   │   ├── icon_play.png
+│   │   ├── icon_prev.png
+│   │   ├── icon_stop.png
+│   │   ├── script.js
+│   │   └── style.css
+│   ├── launch2.sh
+│   ├── launch.sh
+│   ├── lib
+│   │   ├── libFLAC.so.8
+│   │   ├── libgme.so.0
+│   │   ├── libjpeg.so
+│   │   ├── liblirc_client.so.0
+│   │   ├── libmodplug.so.1
+│   │   ├── libmpeg3.so.2
+│   │   ├── libmpg123.so.0
+│   │   ├── libogg.so.0
+│   │   ├── libopenmpt.so.0
+│   │   ├── libopusfile.so.0
+│   │   ├── libopus.so.0
+│   │   ├── libpng16.so
+│   │   ├── libpng.so
+│   │   ├── libSDL-1.2.so.0
+│   │   ├── libSDL_gfx.so.15
+│   │   ├── libSDL_gfx.so.16
+│   │   ├── libSDL_image-1.2.so.0
+│   │   ├── libspeex.so.1
+│   │   ├── libvorbisenc.so
+│   │   ├── libvorbisfile.so.3
+│   │   ├── libvorbisidec.so.1
+│   │   ├── libvorbis.so.0
+│   │   ├── libwavpack.so.1
+│   │   └── libz.so.1
+│   ├── LICENSE.txt
+│   ├── logo.png
+│   ├── logo_sel.png
+│   ├── log.txt
+│   ├── miyoo.keymap
+│   └── themes
+│       ├── default-modern
+│       │   ├── arrow-down.png
+│       │   ├── arrow-up.png
+│       │   ├── display-tl.png
+│       │   ├── display-tm.png
+│       │   ├── display-tr.png
+│       │   ├── footer-tl.png
+│       │   ├── footer-tm.png
+│       │   ├── footer-tr.png
+│       │   ├── letters_lcd_1.png
+│       │   ├── letters_lcd_2.png
+│       │   ├── letters_lcd_black.png
+│       │   ├── letters_lcd.png
+│       │   ├── letters_small_1.png
+│       │   ├── letters_small_black.png
+│       │   ├── letters_small_blue.png
+│       │   ├── letters_small_orange.png
+│       │   ├── letters_small_white.png
+│       │   ├── lvmiddle.png
+│       │   ├── symbols.png
+│       │   ├── textarea-m.png
+│       │   └── theme.conf
+│       └── default-modern-large
+│           ├── arrow-down.png
+│           ├── arrow-up.png
+│           ├── display-tl.png
+│           ├── display-tm.png
+│           ├── display-tr.png
+│           ├── footer-tl.png
+│           ├── footer-tm.png
+│           ├── footer-tr.png
+│           ├── letters_large_blue.png
+│           ├── letters_large_white.png
+│           ├── letters_lcd_1.png
+│           ├── letters_lcd_2.png
+│           ├── letters_lcd_black.png
+│           ├── letters_lcd.png
+│           ├── lvmiddle.png
+│           ├── symbols.png
+│           ├── textarea-m.png
+│           └── theme.conf
+├── src
+│   ├── audio.c
+│   ├── audio.h
+│   ├── bmp.c
+│   ├── bmp.h
+│   ├── charset.c
+│   ├── charset.h
+│   ├── consts.h
+│   ├── core.c
+│   ├── core.h
+│   ├── debug.c
+│   ├── debug.h
+│   ├── decloader.c
+│   ├── decloader.h
+│   ├── decoders
+│   │   ├── flac.c
+│   │   ├── gme.c
+│   │   ├── mikmod.c
+│   │   ├── modplug.c
+│   │   ├── mpg123.c
+│   │   ├── musepack.c
+│   │   ├── openmpt.c
+│   │   ├── opus.c
+│   │   ├── playgsf_core
+│   │   │   ├── config.h
+│   │   │   ├── config.h.in
+│   │   │   ├── gmu_gsf.cpp
+│   │   │   ├── gsf.cpp
+│   │   │   ├── gsf.h
+│   │   │   ├── in2.h
+│   │   │   ├── libresample-0.1.3
+│   │   │   │   ├── config.guess
+│   │   │   │   ├── config.sub
+│   │   │   │   ├── configure
+│   │   │   │   ├── configure.in
+│   │   │   │   ├── include
+│   │   │   │   │   └── libresample.h
+│   │   │   │   ├── install-sh
+│   │   │   │   ├── libresample.a
+│   │   │   │   ├── LICENSE.txt
+│   │   │   │   ├── Makefile.in
+│   │   │   │   ├── README.txt
+│   │   │   │   ├── src
+│   │   │   │   │   ├── config.h
+│   │   │   │   │   ├── configtemplate.h
+│   │   │   │   │   ├── filterkit.c
+│   │   │   │   │   ├── filterkit.h
+│   │   │   │   │   ├── resample.c
+│   │   │   │   │   ├── resample_defs.h
+│   │   │   │   │   └── resamplesubs.c
+│   │   │   │   ├── tests
+│   │   │   │   │   ├── compareresample.c
+│   │   │   │   │   ├── resample-sndfile
+│   │   │   │   │   ├── resample-sndfile.c
+│   │   │   │   │   ├── testresample
+│   │   │   │   │   └── testresample.c
+│   │   │   │   └── win
+│   │   │   │       └── libresample.dsp
+│   │   │   ├── loadpic.cpp
+│   │   │   ├── loadpic.h
+│   │   │   ├── main.c
+│   │   │   ├── out.h
+│   │   │   ├── resource.h
+│   │   │   ├── types.h
+│   │   │   ├── VBA
+│   │   │   │   ├── arm-new.h
+│   │   │   │   ├── bios.cpp
+│   │   │   │   ├── bios.h
+│   │   │   │   ├── GBA.cpp
+│   │   │   │   ├── GBA.h
+│   │   │   │   ├── GBAinline.h
+│   │   │   │   ├── getopt1.c
+│   │   │   │   ├── Globals.cpp
+│   │   │   │   ├── Globals.h
+│   │   │   │   ├── interp.h
+│   │   │   │   ├── memgzio.c
+│   │   │   │   ├── memgzio.h
+│   │   │   │   ├── NLS.h
+│   │   │   │   ├── Port.h
+│   │   │   │   ├── psftag.c
+│   │   │   │   ├── psftag.h
+│   │   │   │   ├── snd_interp.cpp
+│   │   │   │   ├── snd_interp.h
+│   │   │   │   ├── Sound.cpp
+│   │   │   │   ├── Sound.h
+│   │   │   │   ├── System.h
+│   │   │   │   ├── thumb.h
+│   │   │   │   ├── unzip.cpp
+│   │   │   │   ├── unzip.h
+│   │   │   │   ├── Util.cpp
+│   │   │   │   └── Util.h
+│   │   │   └── zlib
+│   │   │       └── zutil.h
+│   │   ├── speex.c
+│   │   ├── vorbis.c
+│   │   └── wavpack.c
+│   ├── dir.c
+│   ├── dir.h
+│   ├── dirparser.c
+│   ├── dirparser.h
+│   ├── eventqueue.c
+│   ├── eventqueue.h
+│   ├── fallthrough.h
+│   ├── feloader.c
+│   ├── feloader.h
+│   ├── fileplayer.c
+│   ├── fileplayer.h
+│   ├── fmath.c
+│   ├── fmath.h
+│   ├── fmath_tables.h
+│   ├── frontends
+│   │   ├── lirc.c
+│   │   ├── log.c
+│   │   ├── notify.c
+│   │   ├── sdl
+│   │   │   ├── about.c
+│   │   │   ├── about.h
+│   │   │   ├── coverimg.c
+│   │   │   ├── coverimg.h
+│   │   │   ├── coverviewer.c
+│   │   │   ├── coverviewer.h
+│   │   │   ├── filebrowser.c
+│   │   │   ├── filebrowser.h
+│   │   │   ├── gmuwidget.c
+│   │   │   ├── gmuwidget.h
+│   │   │   ├── help.c
+│   │   │   ├── help.h
+│   │   │   ├── inputconfig.c
+│   │   │   ├── inputconfig.h
+│   │   │   ├── kam.c
+│   │   │   ├── kam.h
+│   │   │   ├── playerdisplay.c
+│   │   │   ├── playerdisplay.h
+│   │   │   ├── plbrowser.c
+│   │   │   ├── plbrowser.h
+│   │   │   ├── plmanager.c
+│   │   │   ├── plmanager.h
+│   │   │   ├── question.c
+│   │   │   ├── question.h
+│   │   │   ├── sdl.c
+│   │   │   ├── setup.c
+│   │   │   ├── setup.h
+│   │   │   ├── skin.c
+│   │   │   ├── skin.h
+│   │   │   ├── textbrowser.c
+│   │   │   ├── textbrowser.h
+│   │   │   ├── textrenderer.c
+│   │   │   └── textrenderer.h
+│   │   └── web
+│   │       ├── base64.c
+│   │       ├── base64.h
+│   │       ├── gmuhttp.c
+│   │       ├── httpd.c
+│   │       ├── httpd.h
+│   │       ├── json.c
+│   │       ├── json.h
+│   │       ├── net.c
+│   │       ├── net.h
+│   │       ├── queue.c
+│   │       ├── queue.h
+│   │       ├── sha1.c
+│   │       ├── sha1.h
+│   │       ├── websocket.c
+│   │       └── websocket.h
+│   ├── gmudecoder.h
+│   ├── gmuerror.c
+│   ├── gmuerror.h
+│   ├── gmuevent.h
+│   ├── gmufrontend.h
+│   ├── hw_caanoo.c
+│   ├── hw_caanoo.h
+│   ├── hw_dingux.c
+│   ├── hw_dingux.h
+│   ├── hw_gp2xwiz.c
+│   ├── hw_gp2xwiz.h
+│   ├── hw_miyoo.c
+│   ├── hw_miyoo.h
+│   ├── hw_nanonote.c
+│   ├── hw_nanonote.h
+│   ├── hw_pandora.c
+│   ├── hw_pandora.h
+│   ├── hw_pre.c
+│   ├── hw_pre.h
+│   ├── hw_unknown.c
+│   ├── hw_unknown.h
+│   ├── hw_zipit-z2.c
+│   ├── hw_zipit-z2.h
+│   ├── id3.c
+│   ├── id3.h
+│   ├── imgsize.h
+│   ├── jpeg.c
+│   ├── jpeg.h
+│   ├── m3u.c
+│   ├── m3u.h
+│   ├── medialib.c
+│   ├── medialib.h
+│   ├── medialibsql.h
+│   ├── metadatareader.c
+│   ├── metadatareader.h
+│   ├── nethelper.c
+│   ├── nethelper.h
+│   ├── oss_mixer.c
+│   ├── oss_mixer.h
+│   ├── pbstatus.h
+│   ├── playlist.c
+│   ├── playlist.h
+│   ├── pls.c
+│   ├── pls.h
+│   ├── png.c
+│   ├── png.h
+│   ├── pthread_helper.c
+│   ├── pthread_helper.h
+│   ├── reader.c
+│   ├── reader.h
+│   ├── ringbuffer.c
+│   ├── ringbuffer.h
+│   ├── tools
+│   │   ├── gmuc.c
+│   │   ├── listwidget.c
+│   │   ├── listwidget.h
+│   │   ├── ui.c
+│   │   ├── ui.h
+│   │   ├── window.c
+│   │   └── window.h
+│   ├── trackinfo.c
+│   ├── trackinfo.h
+│   ├── util.c
+│   ├── util.h
+│   ├── wejconfig.c
+│   └── wejconfig.h
+├── themes
+│   ├── default-modern
+│   │   ├── arrow-down.png
+│   │   ├── arrow-up.png
+│   │   ├── display-tl.png
+│   │   ├── display-tm.png
+│   │   ├── display-tr.png
+│   │   ├── footer-tl.png
+│   │   ├── footer-tm.png
+│   │   ├── footer-tr.png
+│   │   ├── letters_lcd_1.png
+│   │   ├── letters_lcd_2.png
+│   │   ├── letters_lcd_black.png
+│   │   ├── letters_lcd.png
+│   │   ├── letters_small_1.png
+│   │   ├── letters_small_black.png
+│   │   ├── letters_small_blue.png
+│   │   ├── letters_small_orange.png
+│   │   ├── letters_small_white.png
+│   │   ├── lvmiddle.png
+│   │   ├── symbols.png
+│   │   ├── textarea-m.png
+│   │   └── theme.conf
+│   └── default-modern-large
+│       ├── arrow-down.png
+│       ├── arrow-up.png
+│       ├── display-tl.png
+│       ├── display-tm.png
+│       ├── display-tr.png
+│       ├── footer-tl.png
+│       ├── footer-tm.png
+│       ├── footer-tr.png
+│       ├── letters_large_blue.png
+│       ├── letters_large_white.png
+│       ├── letters_lcd_1.png
+│       ├── letters_lcd_2.png
+│       ├── letters_lcd_black.png
+│       ├── letters_lcd.png
+│       ├── lvmiddle.png
+│       ├── symbols.png
+│       ├── textarea-m.png
+│       └── theme.conf
+├── tree.txt
+├── unknown.keymap
+├── wiz.keymap
+└── zipit-z2.keymap
+
+29 directories, 422 files
