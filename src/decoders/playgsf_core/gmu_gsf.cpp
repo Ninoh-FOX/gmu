@@ -316,6 +316,13 @@ static int meta_data_load(const char *filename) {
     return 1;
 }
 
+static int get_bitrate(void) { 
+    return sndSamplesPerSec * sndNumChannels * sndBitsPerSample; 
+}
+static const char *get_file_type(void) { 
+    return "Game Boy Advance Audio (GSF)"; 
+}
+
 static int get_meta_data_int(GmuMetaDataType type, int for_current_file) { return 0; }
 static int meta_data_close(void) { return 1; }
 static GmuCharset meta_data_get_charset(void) { return M_CHARSET_UTF_8; }
@@ -324,11 +331,34 @@ static int next_subtrack(void) { return 0; }
 static int prev_subtrack(void) { return 0; }
 
 static GmuDecoder gd = {
-    "gsf_decoder", NULL, NULL, get_name, NULL, get_file_extensions, NULL, open_file,
-    close_file, decode_data, seek, NULL, get_meta_data, get_meta_data_int,
-    get_samplerate, get_channels, get_length, NULL, NULL, get_decoder_buffer_size,
-    meta_data_load, meta_data_close, meta_data_get_charset, NULL, set_reader_handle,
-    next_subtrack, prev_subtrack, NULL
+    "gsf_decoder",           // identifier
+    NULL,                    // init_decoder
+    NULL,                    // close_decoder
+    get_name,                // get_name
+    NULL,                    // get_info
+    get_file_extensions,     // get_file_extensions
+    NULL,                    // get_mime_types
+    open_file,               // open_file
+    close_file,              // close_file
+    decode_data,             // decode_data
+    seek,                    // seek
+    get_bitrate,             // get_current_bitrate (Añadido)
+    get_meta_data,           // get_meta_data
+    get_meta_data_int,       // get_meta_data_int
+    get_samplerate,          // get_samplerate
+    get_channels,            // get_channels
+    get_length,              // get_length
+    get_bitrate,             // get_bitrate (Añadido)
+    get_file_type,           // get_file_type (Añadido)
+    get_decoder_buffer_size, // get_decoder_buffer_size
+    meta_data_load,          // meta_data_load
+    meta_data_close,         // meta_data_close
+    meta_data_get_charset,   // meta_data_get_charset
+    NULL,                    // data_check_magic_bytes
+    set_reader_handle,       // set_reader_handle
+    next_subtrack,           // next_subtrack
+    prev_subtrack,           // prev_subtrack
+    NULL                     // handle
 };
 
 extern "C" GmuDecoder *GMU_REGISTER_DECODER(void) { return &gd; }
