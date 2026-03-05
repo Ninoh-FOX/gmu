@@ -257,7 +257,7 @@ CXX_MIYOO = /opt/miyoomini-toolchain/usr/bin/arm-linux-gnueabihf-g++
 CC_MIYOO  = /opt/miyoomini-toolchain/usr/bin/arm-linux-gnueabihf-gcc
 
 # Añadimos -DNO_ASM y -DC_CORE para desactivar el ensamblador y forzar el emulador en C puro.
-GSF_CFLAGS   = -O3 -ffast-math -mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4 -fPIC -Wall -Isrc/decoders/playgsf_core -Isrc/decoders/playgsf_core/VBA -Isrc/decoders/playgsf_core/libresample-0.1.3/include -DC_CORE -DNO_ASM -DLINUX
+GSF_CFLAGS   = -O3 -ffast-math -mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4 -fPIC -Wall -Isrc/decoders/playgsf_core -Isrc/decoders/playgsf_core/VBA -Isrc/decoders/playgsf_core/libresample-0.1.3/include -DC_CORE -DNO_ASM -DLINUX -DNO_INTERPOLATION 
 GSF_CXXFLAGS = $(GSF_CFLAGS) -Wno-narrowing -fpermissive -DGMU_REGISTER_DECODER=$(DECODER_PLUGIN_LOADER_FUNCTION)
 
 # Archivos fuente en C puro (remuestreo, ZIP antiguo, etc)
