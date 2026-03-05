@@ -35,11 +35,11 @@ extern "C" {
     int playforever=0, fileoutput=0;
     int TrailingSilence=1000;
     int DetectSilence=1, silencedetected=0, silencelength=5;
-    int noinfo=1;
+    int noinfo=0;
     
     int cpupercent=0, sndSamplesPerSec=44100, sndNumChannels=2;
     int sndBitsPerSample=16;
-    int bass_boost_enabled = 1; // Activar el Bass Boost por defecto
+    int bass_boost_enabled = 0; // Activar el Bass Boost por defecto
     int deflen=120, deffade=10;
     
     extern unsigned short soundFinalWave[1470];
@@ -90,7 +90,7 @@ static void lowshelf_process(short *samples, int count) {
 extern "C" void end_of_track() { g_playing = 0; }
 
 /* --- BÚFER CIRCULAR --- */
-#define GSF_BUFFER_SIZE (1024 * 128)
+#define GSF_BUFFER_SIZE (1024 * 512)
 static char gsf_buffer[GSF_BUFFER_SIZE];
 static int buf_read_pos = 0, buf_write_pos = 0, buf_filled_bytes = 0;
 static pthread_mutex_t buf_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -98,9 +98,63 @@ static pthread_cond_t  buf_cond  = PTHREAD_COND_INITIALIZER;
 static volatile int emu_running = 0;
 static pthread_t emu_thread;
 static char current_rom_path[512];
-static TrackInfo ti_metaonly;
 
-/* --- INTERCEPTAR AUDIO (REEMPLAZA ALSA) --- */
+/* --- GESTIÓN DE METADATOS Y FORMATO DE PLAYLIST --- */
+typedef struct {
+    char title[256];
+    char artist[256];
+    char album[256];
+    char tracknr[16];
+    char date[16];
+    char custom_list_name[512]; // Aquí guardaremos la frase entera formateada
+} GsfTags;
+
+static GsfTags tags_metaonly; 
+static GsfTags tags_current;  
+
+static void gsf_read_tags(const char *filename, GsfTags *tags) {
+    tags->title[0] = '\0';
+    tags->artist[0] = '\0';
+    tags->album[0] = '\0';
+    tags->tracknr[0] = '\0';
+    tags->date[0] = '\0';
+    tags->custom_list_name[0] = '\0';
+
+    char *tag_buffer = (char*)malloc(50001); 
+    if (tag_buffer) {
+        if (psftag_readfromfile(tag_buffer, filename) >= 0) {
+            char tmp[256];
+            if (!psftag_getvar(tag_buffer, "title", tmp, sizeof(tmp)-1)) 
+                strncpy(tags->title, tmp, sizeof(tags->title)-1);
+            if (!psftag_getvar(tag_buffer, "artist", tmp, sizeof(tmp)-1)) 
+                strncpy(tags->artist, tmp, sizeof(tags->artist)-1);
+            if (!psftag_getvar(tag_buffer, "game", tmp, sizeof(tmp)-1)) 
+                strncpy(tags->album, tmp, sizeof(tags->album)-1);
+            if (!psftag_getvar(tag_buffer, "track", tmp, sizeof(tmp)-1)) 
+                strncpy(tags->tracknr, tmp, sizeof(tags->tracknr)-1);
+            if (!psftag_getvar(tag_buffer, "year", tmp, sizeof(tmp)-1)) 
+                strncpy(tags->date, tmp, sizeof(tags->date)-1);
+        }
+        free(tag_buffer); 
+    }
+    
+    // --- CONSTRUIR EL TEXTO PARA LA PLAYLIST: "Álbum, Título, Artista, Fecha" ---
+    char temp[512] = {0};
+    
+    if (tags->album[0])  { strcat(temp, tags->album); }
+    if (tags->title[0])  { if(temp[0]) strcat(temp, ", "); strcat(temp, tags->title); }
+    if (tags->artist[0]) { if(temp[0]) strcat(temp, ", "); strcat(temp, tags->artist); }
+    if (tags->date[0])   { if(temp[0]) strcat(temp, ", "); strcat(temp, tags->date); }
+    
+    // Si la pista no tuviera tags (muy raro en GSF), ponemos un texto por defecto
+    if (temp[0] == '\0') {
+        strcpy(temp, "Pista de GBA (Sin Tags)");
+    }
+    
+    strncpy(tags->custom_list_name, temp, sizeof(tags->custom_list_name)-1);
+}
+
+/* --- INTERCEPTAR AUDIO --- */
 extern "C" void writeSound(void) {
     if (!emu_running) return;
 
@@ -108,7 +162,6 @@ extern "C" void writeSound(void) {
     static short tempBuffer[1470];
     memcpy(tempBuffer, soundFinalWave, ret);
 
-    // Fade Out original
     int time_to_end_ms = TrackLength - FadeLength;
     if (time_to_end_ms < 0) time_to_end_ms = 0;
     if (time_to_end_ms <= FadeLength) {
@@ -118,10 +171,8 @@ extern "C" void writeSound(void) {
         for (int i = 0; i < samplesCount; i++) tempBuffer[i] = (short)(tempBuffer[i] * factor);
     }
 
-    // Bass Boost original
     if (bass_boost_enabled) { lowshelf_process(tempBuffer, ret / sizeof(short)); }
 
-    // Enviar a Gmu (Búfer circular)
     int bytes_to_write = ret;
     char *data = (char*)tempBuffer;
 
@@ -164,19 +215,30 @@ static const char *get_file_extensions(void) { return ".gsf;.minigsf"; }
 static int open_file(const char *filename) {
     strncpy(current_rom_path, filename, sizeof(current_rom_path)-1);
     
-    // Leer tags para definir longitud real
-    char tag_buffer[50001], fade_str[256], length_str[256];
-    psftag_readfromfile(tag_buffer, filename);
+    gsf_read_tags(filename, &tags_current);
     
-    if (!psftag_getvar(tag_buffer, "fade", fade_str, sizeof(fade_str)-1)) {
-        FadeLength = LengthFromString(fade_str);
-    } else {
-        FadeLength = 10000; // 10s default fade
-    }
+    char fade_str[256], length_str[256];
+    char *tag_buffer = (char*)malloc(50001); 
     
-    if (!psftag_raw_getvar(tag_buffer, "length", length_str, sizeof(length_str)-1)) {
-        TrackLength = LengthFromString(length_str) + FadeLength;
+    if (tag_buffer) {
+        if (psftag_readfromfile(tag_buffer, filename) >= 0) {
+            if (!psftag_getvar(tag_buffer, "fade", fade_str, sizeof(fade_str)-1)) {
+                FadeLength = LengthFromString(fade_str);
+            } else {
+                FadeLength = 10000;
+            }
+            if (!psftag_raw_getvar(tag_buffer, "length", length_str, sizeof(length_str)-1)) {
+                TrackLength = LengthFromString(length_str) + FadeLength;
+            } else {
+                TrackLength = DefaultLength;
+            }
+        } else {
+            FadeLength = 10000;
+            TrackLength = DefaultLength;
+        }
+        free(tag_buffer);
     } else {
+        FadeLength = 10000;
         TrackLength = DefaultLength;
     }
 
@@ -228,25 +290,29 @@ static int get_samplerate(void) { return sndSamplesPerSec; }
 static int get_channels(void) { return sndNumChannels; }
 
 static const char *get_meta_data(GmuMetaDataType type, int for_current_file) {
-    static char meta[256];
+    GsfTags *tags = for_current_file ? &tags_current : &tags_metaonly;
+    
     if (!for_current_file) {
         switch (type) {
-            case GMU_META_TITLE: strncpy(meta, ti_metaonly.title, 255); break;
-            case GMU_META_ARTIST: strncpy(meta, ti_metaonly.artist, 255); break;
-            case GMU_META_ALBUM: strncpy(meta, ti_metaonly.album, 255); break;
-            default: meta[0] = '\0';
+            case GMU_META_TITLE:   return tags->custom_list_name; 
+            case GMU_META_ARTIST:  return ""; 
+            case GMU_META_ALBUM:   return ""; 
+            default: return ""; 
         }
-    } else meta[0] = '\0'; // Tiempo real (opcional)
-    return meta;
+    } else {
+        switch (type) {
+            case GMU_META_TITLE:   return tags->title;
+            case GMU_META_ARTIST:  return tags->artist;
+            case GMU_META_ALBUM:   return tags->album;
+            case GMU_META_TRACKNR: return tags->tracknr;
+            case GMU_META_DATE:    return tags->date;
+            default: return ""; 
+        }
+    }
 }
 
 static int meta_data_load(const char *filename) {
-    char tag_buffer[50001], tmp[256];
-    psftag_readfromfile(tag_buffer, filename);
-    
-    if (!psftag_getvar(tag_buffer, "title", tmp, sizeof(tmp)-1)) strncpy(ti_metaonly.title, tmp, 255); else ti_metaonly.title[0]='\0';
-    if (!psftag_getvar(tag_buffer, "artist", tmp, sizeof(tmp)-1)) strncpy(ti_metaonly.artist, tmp, 255); else ti_metaonly.artist[0]='\0';
-    if (!psftag_getvar(tag_buffer, "game", tmp, sizeof(tmp)-1)) strncpy(ti_metaonly.album, tmp, 255); else ti_metaonly.album[0]='\0';
+    gsf_read_tags(filename, &tags_metaonly);
     return 1;
 }
 
