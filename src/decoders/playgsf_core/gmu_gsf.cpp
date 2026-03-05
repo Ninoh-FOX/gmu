@@ -42,7 +42,7 @@ extern "C" {
     int bass_boost_enabled = 0; // Activar el Bass Boost por defecto
     int deflen=120, deffade=10;
     
-    extern unsigned short soundFinalWave[1470];
+    extern unsigned short soundFinalWave[2304];
     extern int soundBufferLen;
 }
 
@@ -159,7 +159,7 @@ extern "C" void writeSound(void) {
     if (!emu_running) return;
 
     int ret = soundBufferLen;
-    static short tempBuffer[1470];
+    static short tempBuffer[2304];
     memcpy(tempBuffer, soundFinalWave, ret);
 
     int time_to_end_ms = TrackLength - FadeLength;
