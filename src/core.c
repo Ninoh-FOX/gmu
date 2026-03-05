@@ -1,7 +1,7 @@
 /* 
  * Gmu Music Player
  *
- * Copyright (c) 2006-2015 Johannes Heimansberg (wejp.k.vu)
+ * Copyright (c) 2006-2024 Johannes Heimansberg (wej.k.vu)
  *
  * File: core.c  Created: 081115
  *
@@ -60,6 +60,11 @@ static int             shutdown_timer = 0;
 static int             remaining_time;
 static char            base_dir[256], *config_dir;
 static volatile sig_atomic_t signal_received = 0;
+static char           *config_file_path;
+
+/* cmdline stores a copy of the command line that's used to run Gmu */
+#define CMDLINE_SIZE 256
+static char cmdline[CMDLINE_SIZE];
 
 #ifdef GMU_MEDIALIB
 static GmuMedialib     gm;
@@ -338,6 +343,12 @@ int gmu_core_pause(void)
 int gmu_core_next(void)
 {
 	int res;
+
+	/* NUEVO: Intentar cambiar de sub-pista primero */
+	if (file_player_next_subtrack()) {
+		return 1; /* Éxito al cambiar sub-pista, abortamos salto de archivo */
+	}
+
 	int pbsc = file_player_request_playback_state_change(PBRQ_PLAY);
 	res = play_next(&pl, 1);
 	if (pbsc) event_queue_push(&event_queue, GMU_PLAYBACK_STATE_CHANGE);
@@ -347,6 +358,12 @@ int gmu_core_next(void)
 int gmu_core_previous(void)
 {
 	int res;
+
+	/* NUEVO: Intentar cambiar de sub-pista primero */
+	if (file_player_prev_subtrack()) {
+		return 1; /* Éxito al cambiar sub-pista, abortamos salto de archivo */
+	}
+
 	int pbsc = file_player_request_playback_state_change(PBRQ_PLAY);
 	res = play_previous(&pl);
 	if (pbsc) event_queue_push(&event_queue, GMU_PLAYBACK_STATE_CHANGE);
@@ -576,7 +593,7 @@ void gmu_core_playlist_clear(void)
 	event_queue_push(&event_queue, GMU_PLAYLIST_CHANGE);
 }
 
-Entry *gmu_core_playlist_get_entry(int item)
+Entry *gmu_core_playlist_get_entry(unsigned item)
 {
 	Entry *e;
 	e = playlist_get_entry(&pl, item);
@@ -590,11 +607,11 @@ int gmu_core_playlist_entry_delete(Entry *entry)
 	return res;
 }
 
-Entry *gmu_core_playlist_item_delete(int item)
+Entry *gmu_core_playlist_item_delete(unsigned item)
 {
 	Entry *next = NULL;
 	next = playlist_item_delete(&pl, item);
-	event_queue_push_with_parameter(&event_queue, GMU_PLAYLIST_CHANGE, item);
+	event_queue_push_with_parameter(&event_queue, GMU_PLAYLIST_CHANGE, (int)item);
 	return next;
 }
 
@@ -706,11 +723,11 @@ void gmu_core_set_volume(int vol)
 				audio_set_volume(GMU_CORE_SW_VOLUME_MAX-1);
 				hw_set_volume(vol-GMU_CORE_SW_VOLUME_MAX+2);
 			} else {
-				audio_set_volume(vol);
+				audio_set_volume((unsigned)vol);
 				hw_set_volume(1);
 			}
 		} else if (strncmp(vc, "Software", 8) == 0) {
-			audio_set_volume(vol);
+			audio_set_volume((unsigned)vol);
 		} else if (strncmp(vc, "Hardware", 8) == 0) {
 			hw_set_volume(vol);
 		}
@@ -739,7 +756,7 @@ char **gmu_core_get_file_extensions(void)
 	return file_extensions;
 }
 
-int gmu_core_get_status(void)
+unsigned gmu_core_get_status(void)
 {
 	return player_status == PLAYING ? file_player_get_item_status() : STOPPED;
 }
@@ -771,14 +788,24 @@ int gmu_core_get_shutdown_time_total(void)
 	return shutdown_timer;
 }
 
-char *gmu_core_get_base_dir(void)
+const char *gmu_core_get_base_dir(void)
 {
 	return base_dir;
 }
 
-char *gmu_core_get_config_dir(void)
+const char *gmu_core_get_config_dir(void)
 {
 	return config_dir;
+}
+
+char *gmu_core_get_config_file_path(void)
+{
+	return config_file_path;
+}
+
+char *gmu_core_get_command_line(void)
+{
+	return cmdline;
 }
 
 #ifdef GMU_MEDIALIB
@@ -930,11 +957,12 @@ static void file_extensions_free(void)
 }
 
 #define MAX_FRONTEND_PLUGIN_BY_CMD_ARG 16
+#define MAX_CMDLINE_SONGS (256)
 
 int main(int argc, char **argv)
 {
 	char        *skin_file = "";
-	char        *config_file = "gmu.conf", *config_file_path, *sys_config_dir = NULL;
+	char        *config_file = "gmu.conf", *sys_config_dir = NULL;
 	char         temp[512];
 	int          disksync = 0;
 	size_t       i;
@@ -946,6 +974,10 @@ int main(int argc, char **argv)
 	size_t       frontend_plugin_by_cmd_arg_counter = 0;
 	int          pb_time = -1;
 	char        *alt_playlist = NULL;
+	/* Up to 255 songs can be passed directly via the command line */
+	char        *cmdline_songs[MAX_CMDLINE_SONGS];
+	unsigned int cmdline_song_counter = 0;
+
 
 	for (i = 0; i < MAX_FRONTEND_PLUGIN_BY_CMD_ARG; i++)
 		frontend_plugin_by_cmd_arg[i] = NULL;
@@ -957,6 +989,23 @@ int main(int argc, char **argv)
 	if (!getcwd(base_dir, 255)) snprintf(base_dir, 255, ".");
 	sys_config_dir = base_dir;
 	config_dir = base_dir;
+
+	/* Store the (entire) command line as a string up to CMDLINE_MAX
+	 * characters. This is used as information to the user in the UI. */
+	for (i = 0; i < argc; i++) {
+		size_t cmdline_len = strlen(cmdline);
+		size_t arg_len = strlen(argv[i]);
+		if (cmdline_len + arg_len + 2 < CMDLINE_SIZE) {
+			strcat(cmdline, argv[i]);
+			strcat(cmdline, " ");
+		} else {
+			/* If there is not enough room in the target buffer, we end the
+			   string with "..." and abort further concatenation. */
+			int spos = cmdline_len+4 < CMDLINE_SIZE ? cmdline_len : cmdline_len-4;
+			sprintf(cmdline+spos, "...");
+			break;
+		}
+	}
 
 	for (i = 1; argv[i]; i++) {
 		if (argv[i][0] == '-') {
@@ -1034,8 +1083,8 @@ int main(int argc, char **argv)
 					exit(0);
 					break;
 			}
-		} else {
-			/*printf("FILE:%s (index: %d)\n", argv[i], i);*/
+		} else if (cmdline_song_counter < MAX_CMDLINE_SONGS) {
+			cmdline_songs[cmdline_song_counter++] = argv[i];
 		}
 	}
 
@@ -1074,7 +1123,6 @@ int main(int argc, char **argv)
 	if (config_file_path && cfg_read_config_file(config, config_file_path) != 0) {
 		wdprintf(V_WARNING, "gmu", "Could not read %s. Assuming defaults.\n", config_file_path);
 	}
-	free(config_file_path);
 
 	/* Set output path for gmu.conf file, based on XDG spec, usually ~/.config/gmu/gmu.conf */
 	{
@@ -1091,11 +1139,11 @@ int main(int argc, char **argv)
 
 	/* Reader cache size */
 	{
-		int size = cfg_get_int_value(config, "Gmu.ReaderCache");
-		int prebuffer_size;
+		size_t size = (size_t)cfg_get_int_value(config, "Gmu.ReaderCache");
+		size_t prebuffer_size;
 		
 		if (size < 64) size = 64; /* Assume a minimum buffer size of 64 KB */
-		prebuffer_size = cfg_get_int_value(config, "Gmu.ReaderCachePrebufferSize");
+		prebuffer_size = (size_t)cfg_get_int_value(config, "Gmu.ReaderCachePrebufferSize");
 		if (prebuffer_size <= 0) prebuffer_size = size / 2;
 		reader_set_cache_size_kb(size, prebuffer_size);
 	}
@@ -1143,6 +1191,14 @@ int main(int argc, char **argv)
 			free(playlist_m3u);
 		} else {
 			wdprintf(V_ERROR, "gmu", "ERROR: Unable to load playlist. Failed to create path.\n");
+		}
+	}
+	/* If songs have been passed via the command line, add them to the playlist here */
+	if (cmdline_song_counter > 0) {
+		int i;
+		for (i = 0; i < cmdline_song_counter; i++) {
+			wdprintf(V_INFO, "gmu", "Adding file to playlist: %s\n", cmdline_songs[i]);
+			playlist_add_file(&pl, cmdline_songs[i], NULL);
 		}
 	}
 	wdprintf(V_INFO, "gmu", "Playlist length: %d items\n", playlist_get_length(&pl));
@@ -1205,7 +1261,7 @@ int main(int argc, char **argv)
 			int    fade_out_on_skip = check_fade_out_on_skip();
 
 			playlist_get_lock(&pl);
-			tmp_item = playlist_get_entry(&pl, global_param);
+			tmp_item = playlist_get_entry(&pl, (size_t)global_param);
 			wdprintf(V_DEBUG, "gmu", "Playing item %d from current playlist!\n", global_param);
 			if (tmp_item != NULL) {
 				playlist_set_current(&pl, tmp_item);
@@ -1260,7 +1316,7 @@ int main(int argc, char **argv)
 			event_queue_push_with_parameter(
 				&event_queue,
 				GMU_PLAYBACK_STATE_CHANGE,
-				gmu_core_get_status()
+				(int)gmu_core_get_status()
 			);
 		}
 
@@ -1320,7 +1376,7 @@ int main(int argc, char **argv)
 
 	if (file_player_get_item_status() == PLAYING) {
 		unsigned int item_time = file_player_playback_get_time() / 1000;
-		snprintf(temp, 10, "%d", gmu_core_playlist_get_current_position()+1);
+		snprintf(temp, 12, "%d", gmu_core_playlist_get_current_position()+1);
 		gmu_core_config_acquire_lock();
 		cfg_add_key(config, "Gmu.LastPlayedPlaylistItem", temp);
 		snprintf(temp, 10, "%d", item_time);
@@ -1421,6 +1477,7 @@ int main(int argc, char **argv)
 	}
 	cfg_free(config);
 	gmu_core_config_release_lock();
+	free(config_file_path);
 	pthread_mutex_destroy(&config_mutex);
 	pthread_mutex_destroy(&gmu_running_mutex);
 	SDL_Quit();

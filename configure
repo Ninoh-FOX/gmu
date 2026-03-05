@@ -78,7 +78,7 @@ _WEJTEST
 	echo "Checking '$1'..."
 	res=1
 	if $CC $CFLAGS $INCLUDE_PATHS $includes_test_flags -c -o /tmp/test.o /tmp/test.wej.c -Wall 2>${DEBUG_OUTPUT}; then
-		echo echo "$1 header files: okay"
+		echo "$1 header files: okay"
 	else
 		echo "$1 header files: failed"
 		res=0
@@ -91,6 +91,10 @@ _WEJTEST
 		res=0
 	fi
 	rm -f /tmp/test.o /tmp/test.wej.c /tmp/test.exe
+	if [ "${res}" -eq 0 ] && [ "${auto_detect}" -eq 0 ]; then
+		echo "ERROR: Dependencies failed. Aborting."
+		exit 2
+	fi
 	return $res
 }
 
@@ -146,6 +150,9 @@ set_feature()
 			;;
 		speex-decoder)
 			dec_speex=$on_off
+			;;
+		gme-decoder)
+			dec_gme=$on_off
 			;;
 		modplug-decoder)
 			dec_modplug=$on_off
@@ -242,6 +249,10 @@ print_features_and_write_config()
 		echo "FLAC enabled"
 		dec="$dec decoders/flac.so"
 	fi
+	if [ "$dec_gme" = 1 ]; then
+		echo "GME enabled"
+		dec="$dec decoders/gme.so"
+	fi
 	if [ "$dec_speex" = 1 ]; then
 		echo "Speex enabled"
 		dec="$dec decoders/speex.so"
@@ -289,8 +300,8 @@ print_features_and_write_config()
 		echo "SDL_CFLAGS=$(sdl-config --prefix="$sdk_path" --cflags)" >>config.mk
 		echo "SDL_LIB=$(sdl-config --prefix="$sdk_path" --libs)" >>config.mk
 	else
-		echo "SDL_CFLAGS=$(sdl-config --cflags)" >>config.mk
-		echo "SDL_LIB=$(sdl-config --libs)" >>config.mk
+		echo "SDL_CFLAGS=$("$SYSROOT"/usr/bin/sdl-config --cflags)" >>config.mk
+		echo "SDL_LIB=$("$SYSROOT"/usr/bin/sdl-config --libs)" >>config.mk
 	fi
 
 	{
@@ -313,6 +324,7 @@ help()
 	echo "  --enable <feature>"
 	echo "  --disable <feature>"
 	echo "  --release (enables release build flags)"
+	echo "  --noauto (disables feature auto-detection)"
 	echo "  --target-device <device name>"
 	echo "  --sdk-path </path/to/sdk/base/dir>"
 	echo "  --help"
@@ -327,13 +339,14 @@ gmu_core=-2
 tool_gmuc=-2
 dec_opus=-2
 dec_mpg123=-2
+dec_gme=-2
 dec_vorbis=-2
 dec_musepack=-2
 dec_flac=-2
 dec_speex=-2
 dec_modplug=-2
 dec_openmpt=-2
-dec_wavpack=1
+dec_wavpack=-2
 fe_sdl=-2
 fe_web=-2
 fe_lirc=-2
@@ -348,6 +361,8 @@ sdk_path=
 includes=
 libs=
 release_build=0
+# Unless we are told otherwise (--noauto), we enable feature auto-detection:
+auto_detect=-2
 
 # Parse options
 while :
@@ -357,28 +372,32 @@ do
 			help
 			exit 0
 			;;
+		-n | --noauto)
+			auto_detect=0
+			shift
+			;;
 		-e | --enable | --with)
-			enable=$2
-			if [ "$enable" = "" ]; then
+			enable="$2 $enable"
+			if [ "$2" = "" ]; then
 				echo "Invalid use of --enable"
-				break;
+				exit 1
 			fi
 			shift 2
 			;;
 		--enable=* | --with=*)
-			enable=${1#*=}
+			enable="${1#*=} $enable"
 			shift
 			;;
 		-d | --disable | --without)
-			disable=$2
-			if [ "$disable" = "" ]; then
+			disable="$2 $disable"
+			if [ "$2" = "" ]; then
 				echo "Invalid use of --disable"
-				break;
+				exit 1
 			fi
 			shift 2
 			;;
 		--disable=* | --without=*)
-			disable=${1#*=}
+			disable="${1#*=} $disable"
 			shift
 			;;
 		--target-device | -t)
@@ -433,12 +452,41 @@ do
 			break
 			;;
 	esac
-	
-	set_feature "$enable" 1
-	enable=
-	set_feature "$disable" 0
-	disable=
-	TARGET=$target_device
+done
+
+# Flags (possible values: 0=disabled, 1=enabled, -2=autodetect)
+# Set most flags to -2 (autodetect)
+gmu_core=1
+tool_gmuc=${auto_detect}
+dec_opus=${auto_detect}
+dec_mpg123=${auto_detect}
+dec_gme=${auto_detect}
+dec_vorbis=${auto_detect}
+dec_musepack=${auto_detect}
+dec_flac=${auto_detect}
+dec_speex=${auto_detect}
+dec_modplug=${auto_detect}
+dec_openmpt=${auto_detect}
+dec_wavpack=${auto_detect}
+fe_sdl=${auto_detect}
+fe_web=${auto_detect}
+fe_lirc=${auto_detect}
+fe_log=${auto_detect}
+fe_notify=${auto_detect}
+feature_medialib=0
+feature_sdl_gfx=${auto_detect}
+feature_sdl_ttf=${auto_detect}
+feature_debug=0
+feature_oss_mixer=1
+
+TARGET=$target_device
+
+for i in ${enable}; do
+    set_feature "$i" 1
+done
+
+for i in ${disable}; do
+    set_feature "$i" 0
 done
 
 INCLUDE_PATHS="$INCLUDE_PATHS $includes"
@@ -462,8 +510,8 @@ if [ "$sdk_path" ]; then
 	sdl_cflags=$(sdl-config --prefix="$sdk_path" --cflags)
 	sdl_libs=$(sdl-config --prefix="$sdk_path"--libs)
 else
-	sdl_cflags=$(sdl-config --cflags)
-	sdl_libs=$(sdl-config --libs)
+	sdl_cflags=$("$SYSROOT"/usr/bin/sdl-config --cflags)
+	sdl_libs=$("$SYSROOT"/usr/bin/sdl-config --libs)
 fi
 libs_test=$sdl_libs
 includes_test_flags=$sdl_cflags
@@ -478,8 +526,8 @@ if [ "$sdk_path" ]; then
 	sdl_cflags=$(sdl-config --prefix="$sdk_path" --cflags)
 	sdl_libs=$(sdl-config --prefix="$sdk_path" --libs)
 else
-	sdl_cflags=$(sdl-config --cflags)
-	sdl_libs=$(sdl-config --libs)
+	sdl_cflags=$("$SYSROOT"/usr/bin/sdl-config --cflags)
+	sdl_libs=$("$SYSROOT"/usr/bin/sdl-config --libs)
 fi
 libs_test="$sdl_libs -lSDL_gfx"
 includes_test_flags=$sdl_cflags
@@ -489,17 +537,19 @@ if test_lib "SDL_gfx"; then
 	feature_sdl_gfx=0
 fi
 
-includes_test="#ifndef _XOPEN_SOURCE_EXTENDED
-#define _XOPEN_SOURCE_EXTENDED
-#endif
-#include <curses.h>"
-includes_test_flags="-I$BASE_INCLUDE_PATH/ncursesw"
-libs_test="-lncursesw"
-code_test="int testvar = WACS_VLINE;"
-test_lib "ncursesw"
-tool_gmuc=$?
+if [ "$tool_gmuc" != 0 ]; then
+	includes_test="#ifndef _XOPEN_SOURCE_EXTENDED
+	#define _XOPEN_SOURCE_EXTENDED
+	#endif
+	#include <curses.h>"
+	includes_test_flags="-I$BASE_INCLUDE_PATH/ncursesw"
+	libs_test="-lncursesw"
+	code_test="int testvar = WACS_VLINE;"
+	test_lib "ncursesw"
+	tool_gmuc=$?
+fi
 
-if [ $dec_opus != 0 ]; then
+if [ "$dec_opus" != 0 ]; then
 	includes_test="#include <opus/opus.h>
 #include <opusfile.h>"
 	includes_test_flags="-I$BASE_INCLUDE_PATH/opus"
@@ -510,7 +560,7 @@ if [ $dec_opus != 0 ]; then
 	[ $dec_opus = 1 ] && add_config "DEC_opus_CFLAGS=$includes_test_flags"
 fi
 
-if [ $dec_mpg123 != 0 ]; then
+if [ "$dec_mpg123" != 0 ]; then
 	includes_test="#include <mpg123.h>"
 	libs_test="-lmpg123"
 	code_test=""
@@ -518,7 +568,7 @@ if [ $dec_mpg123 != 0 ]; then
 	dec_mpg123=$?
 fi
 
-if [ $dec_flac != 0 ]; then
+if [ "$dec_flac" != 0 ]; then
 	includes_test="#include <FLAC/stream_decoder.h>"
 	libs_test="-lFLAC"
 	code_test=""
@@ -526,7 +576,15 @@ if [ $dec_flac != 0 ]; then
 	dec_flac=$?
 fi
 
-if [ $dec_vorbis != 0 ]; then
+if [ "$dec_gme" != 0 ]; then
+	includes_test="#include <gme/gme.h>"
+	libs_test="-lgme"
+	code_test=""
+	test_lib "libgme"
+	dec_gme=$?
+fi
+
+if [ "$dec_vorbis" != 0 ]; then
 	includes_test="#include <tremor/ivorbiscodec.h>"
 	libs_test="-lvorbisidec"
 	code_test=""
@@ -534,7 +592,7 @@ if [ $dec_vorbis != 0 ]; then
 	dec_vorbis=$?
 fi
 
-if [ $dec_modplug != 0 ]; then
+if [ "$dec_modplug" != 0 ]; then
 	includes_test="#include <libmodplug/modplug.h>"
 	libs_test="-lmodplug"
 	code_test=""
@@ -542,7 +600,7 @@ if [ $dec_modplug != 0 ]; then
 	dec_modplug=$?
 fi
 
-if [ $dec_openmpt != 0 ]; then
+if [ "$dec_openmpt" != 0 ]; then
 	includes_test="#include <libopenmpt/libopenmpt.h>
 #include <libopenmpt/libopenmpt_stream_callbacks_file.h>"
 	libs_test="-lopenmpt"
@@ -551,7 +609,7 @@ if [ $dec_openmpt != 0 ]; then
 	dec_openmpt=$?
 fi
 
-if [ $dec_speex != 0 ]; then
+if [ "$dec_speex" != 0 ]; then
 	includes_test="#include <ogg/ogg.h>
 #include <speex/speex.h>
 #include <speex/speex_header.h>
@@ -565,7 +623,23 @@ if [ $dec_speex != 0 ]; then
 	[ $dec_speex = 1 ] && add_config "DEC_speex_CFLAGS=$includes_test_flags"
 fi
 
-if [ $feature_medialib != 0 ]; then
+if [ "$dec_musepack" != 0 ]; then
+	includes_test="#include \"mpcdec/mpcdec.h\""
+	libs_test="-lmpcdec"
+	code_test=""
+	test_lib "libmpcdec"
+	dec_musepack=$?
+fi
+
+if [ "$dec_wavpack" != 0 ]; then
+	includes_test="#include <wavpack/wavpack.h>"
+	libs_test="-lwavpack"
+	code_test=""
+	test_lib "libwavpack"
+	dec_wavpack=$?
+fi
+
+if [ "$feature_medialib" != 0 ]; then
 	includes_test="#include <sqlite3.h>"
 	libs_test="-lsqlite3"
 	code_test=""
@@ -578,13 +652,13 @@ if [ $feature_medialib != 0 ]; then
 	fi
 fi
 
-if [ $fe_sdl != 0 ]; then
+if [ "$fe_sdl" != 0 ]; then
 	if [ "$sdk_path" ]; then
 		sdl_cflags=$(sdl-config --prefix="$sdk_path" --cflags)
 		sdl_libs=$(sdl-config --prefix="$sdk_path" --libs)
 	else
-		sdl_cflags=$(sdl-config --cflags)
-		sdl_libs=$(sdl-config --libs)
+		sdl_cflags=$("$SYSROOT"/usr/bin/sdl-config --cflags)
+		sdl_libs=$("$SYSROOT"/usr/bin/sdl-config --libs)
 	fi
 	includes_test="#include <SDL/SDL.h>
 #include <SDL/SDL_image.h>"
@@ -595,7 +669,7 @@ if [ $fe_sdl != 0 ]; then
 	fe_sdl=$?
 fi
 
-if [ $fe_web != 0 ]; then
+if [ "$fe_web" != 0 ]; then
 	includes_test="#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -614,7 +688,7 @@ if [ $fe_web != 0 ]; then
 	fe_web=$?
 fi
 
-if [ $fe_lirc != 0 ]; then
+if [ "$fe_lirc" != 0 ]; then
 	includes_test="#include <pthread.h>
 #include <lirc/lirc_client.h>"
 	libs_test="-llirc_client"
@@ -623,7 +697,7 @@ if [ $fe_lirc != 0 ]; then
 	fe_lirc=$?
 fi
 
-if [ $fe_log != 0 ]; then
+if [ "$fe_log" != 0 ]; then
 	includes_test="#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -635,7 +709,7 @@ if [ $fe_log != 0 ]; then
 	fe_log=$?
 fi
 
-if [ $fe_notify != 0 ]; then
+if [ "$fe_notify" != 0 ]; then
 	includes_test="#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>

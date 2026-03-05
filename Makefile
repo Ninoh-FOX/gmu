@@ -1,7 +1,7 @@
 # 
 # Gmu Music Player
 #
-# Copyright (c) 2006-2016 Johannes Heimansberg (wejp.k.vu)
+# Copyright (c) 2006-2025 Johannes Heimansberg (wej.k.vu)
 #
 # File: Makefile  Created: 060904
 #
@@ -18,8 +18,24 @@ STATIC?=0
 include config.mk
 
 PREFIX?=/usr/local
-CFLAGS+=$(COPTS) -pipe -Wall -Wcast-qual -Wno-variadic-macros -Wuninitialized -Wcast-align -Wredundant-decls -Wmissing-declarations -DFILE_HW_H="\"hw_$(TARGET).h\"" -DGMU_INSTALL_PREFIX="\"$(PREFIX)\""
-LFLAGS+=-pthread
+
+# Most flags recommended by the Compiler Options Hardening Guide at
+# https://best.openssf.org/Compiler-Hardening-Guides/Compiler-Options-Hardening-Guide-for-C-and-C++.html
+# have been enabled.
+# The -Wl,-z,nodlopen flag can't be used, since Gmu needs to be able to
+# load its plugins via dlopen().
+# The -Wconversion and -Wsign-conversion flags create too much noise right
+# now, so neither is enabled by default. One of them will be enabled later
+# when most conversion issues in the code-base have been resolved.
+CFLAGS+=$(COPTS) -O2 -pipe -Wall -Wformat -Wformat=2 -Wimplicit-fallthrough -Wcast-qual
+CFLAGS+=-Wno-variadic-macros -Wuninitialized -Wcast-align -Wredundant-decls -Wmissing-declarations
+CFLAGS+=-Werror=implicit -Werror=format-security -Werror=incompatible-pointer-types -Werror=int-conversion
+CFLAGS+=-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3 -fexceptions -fno-delete-null-pointer-checks
+CFLAGS+=-fno-strict-aliasing -fno-strict-overflow -fstack-clash-protection
+# GCC-only flags:
+#CFLAGS+=-Wtrampolines -Wbidi-chars=any,ucn
+CFLAGS+=-DFILE_HW_H="\"hw_$(TARGET).h\"" -DGMU_INSTALL_PREFIX="\"$(PREFIX)\"" -DGMU_SYSCONFDIR="\"$(SYSCONFDIR)\""
+LFLAGS+=-pthread -Wl,-z,noexecstack -Wl,-z,relro
 
 # Release build compiler/linker flags
 ifeq ($(RELEASE_BUILD),1)
@@ -87,6 +103,7 @@ DEC_modplug_LIBS=-lmodplug
 DEC_openmpt_LIBS=-lopenmpt
 DEC_opus_LIBS=-lopus -logg -lopusfile
 DEC_wavpack_LIBS=-lwavpack
+DEC_gme_LIBS=-lgme
 
 ifeq (1,$(STATIC))
 LIBS+=$(foreach i, $(DECODERS_TO_BUILD), $(DEC_$(subst decoders/,,$(basename $(i)))_LIBS))
@@ -104,21 +121,26 @@ DISTBIN_DEPS?=default_distbin
 
 TEMP_HEADER_FILES=tmp-felist.h tmp-declist.h
 
+.PHONY: all
 all: $(DECODERS) $(FRONTENDS) $(TOOLS_TO_BUILD)
 	@echo "All done for target \033[1m$(TARGET)\033[0m. \033[1m$(BINARY)\033[0m binary, \033[1mfrontends\033[0m and \033[1mdecoders\033[0m ready."
 
 config.mk:
 	$(error ERROR: Please run the configure script first)
 
+.PHONY: decoders
 decoders: $(DECODERS_TO_BUILD)
 	@echo "All \033[1mdecoders\033[0m have been built."
 
+.PHONY: frontends
 frontends: $(FRONTENDS_TO_BUILD)
 	@echo "All \033[1mfrontends\033[0m have been built."
 
+.PHONY: frontendsdis
 frontendsdir:
 	$(Q)-mkdir -p frontends
 
+.PHONY: decodersdir
 decodersdir:
 	$(Q)-mkdir -p decoders
 
@@ -144,6 +166,7 @@ projname=gmu-${ver}
 	@echo "Compiling \033[1m$<\033[0m"
 	$(Q)$(CC) -fPIC $(CFLAGS) -Isrc/ -c -o $@ $< -DGMU_REGISTER_FRONTEND=$(FRONTEND_PLUGIN_LOADER_FUNCTION)
 
+.PHONY: dist
 dist: $(ALLFILES)
 	@echo "Creating \033[1m$(projname).tar.gz\033[0m"
 	$(Q)-rm -rf $(projname)
@@ -154,8 +177,10 @@ dist: $(ALLFILES)
 	$(Q)tar chfz $(projname).tar.gz $(projname)
 	$(Q)-rm -rf $(projname)
 
+.PHONY: distbin
 distbin: $(DISTBIN_DEPS)
 
+.PHONY: default_distbin
 default_distbin: $(DISTFILES)
 	@echo "Creating \033[1m$(projname)-$(TARGET).zip\033[0m"
 	$(Q)-rm -rf $(projname)-$(TARGET)
@@ -165,10 +190,12 @@ default_distbin: $(DISTFILES)
 	$(Q)-cp gmuc $(projname)-$(TARGET)
 	$(Q)-cp gmu.$(TARGET).conf $(projname)-$(TARGET)/gmu.$(TARGET).conf
 	$(Q)-cp $(TARGET).keymap $(projname)-$(TARGET)/$(TARGET).keymap
-	$(Q)-cp gmuinput.$(TARGET).conf $(projname)-$(TARGET)/gmuinput.conf
+	$(Q)-cp gmuinput.$(TARGET).conf $(projname)-$(TARGET)/gmuinput.$(TARGET).conf
+	$(Q)-cp gmu-$(TARGET).sh $(projname)-$(TARGET)/gmu.sh
 	$(Q)zip -r $(projname)-$(TARGET).zip $(projname)-$(TARGET)
 	$(Q)-rm -rf $(projname)-$(TARGET)
 
+.PHONY: install
 install: $(DISTFILES)
 	@echo "Installing Gmu: prefix=$(PREFIX) destdir=$(DESTDIR)"
 	$(Q)-mkdir -p $(DESTDIR)$(PREFIX)/bin
@@ -195,6 +222,7 @@ install: $(DISTFILES)
 	$(Q)-mkdir -p $(DESTDIR)$(PREFIX)/share/pixmaps
 	$(Q)cp gmu.png $(DESTDIR)$(PREFIX)/share/pixmaps/gmu.png
 
+.PHONY: clean
 clean:
 	$(Q)-rm -rf *.o $(BINARY) gmuc decoders/*.so decoders/*.o frontends/*.so frontends/*.o
 	$(Q)-rm -f $(TEMP_HEADER_FILES)

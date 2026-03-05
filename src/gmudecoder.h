@@ -1,5 +1,4 @@
-/* 
- * Gmu Music Player
+/* * Gmu Music Player
  *
  * Copyright (c) 2006-2015 Johannes Heimansberg (wej.k.vu)
  *
@@ -106,6 +105,11 @@ typedef struct _GmuDecoder {
 	 * optional, but required for http streaming audio. If this function is not NULL
 	 * the decoder has to close the supplied handle, when finished. */
 	void         (*set_reader_handle)(Reader *r);
+	
+	/* --- Multitrack support --- */
+	int          (*next_subtrack)(void);
+	int          (*prev_subtrack)(void);
+
 	/* internal handle, do not use */
 	void         *handle;
 } GmuDecoder;

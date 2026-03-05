@@ -1,5 +1,4 @@
-/* 
- * Gmu Music Player
+/* * Gmu Music Player
  *
  * Copyright (c) 2006-2021 Johannes Heimansberg (wej.k.vu)
  *
@@ -69,7 +68,10 @@ static TrackInfo        *ti;
 
 static pthread_mutex_t   mutex;
 
-static int               dev_close_asap; /* When true, the device isn't kept open, but closed ASAP */
+static int               dev_close_asap;
+
+/* --- Multitrack extension --- */
+static GmuDecoder       *active_decoder = NULL;
 
 static void set_item_status(PB_Status status)
 {
@@ -122,7 +124,7 @@ void file_player_set_lyrics_file_pattern(const char *pattern)
 	strncpy(lyrics_file_pattern, pattern ? pattern : "", 255);
 }
 
-int file_player_playback_get_time(void)
+size_t file_player_playback_get_time(void)
 {
  	return audio_get_playtime();
 }
@@ -152,7 +154,7 @@ void file_player_shutdown(void)
 	file_player_shut_down = 1;
 	pthread_mutex_unlock(&shut_down_mutex);
 	file_player_set_filename(NULL);
-	file_player_start_playback(); /* Release waiting lock in thread */
+	file_player_start_playback();
 	pthread_join(thread, NULL);
 	if (file) free(file);
 	pthread_mutex_destroy(&item_status_mutex);
@@ -170,7 +172,7 @@ void file_player_set_filename(char *filename)
 	locked = 1;
 	pthread_mutex_lock(&file_mutex);
 	if (filename) {
-		int len = strlen(filename);
+		size_t len = strlen(filename);
 		if (len > 0) {
 			file = realloc(file, len+1);
 			if (file) {
@@ -259,7 +261,7 @@ static int update_metadata(GmuDecoder *gd, TrackInfo *ti, GmuCharset charset)
 					trackinfo_set_image(
 						ti,
 						((*gd->get_meta_data)(GMU_META_IMAGE_DATA, 1)),
-						(*gd->get_meta_data_int)(GMU_META_IMAGE_DATA_SIZE, 1),
+						(size_t)(*gd->get_meta_data_int)(GMU_META_IMAGE_DATA_SIZE, 1),
 						((*gd->get_meta_data)(GMU_META_IMAGE_MIME_TYPE, 1))
 					);
 				}
@@ -280,10 +282,11 @@ static void *decode_audio_thread(void *udata)
 	wdprintf(V_INFO, "fileplayer", "File player thread initialized.\n");
 	seek_second = -1;
 	while (!file_player_check_shutdown()) {
-		char *filename = NULL;
-		int   len = 0, set_playing = 0;
+		char  *filename = NULL;
+		size_t len = 0;
+		int    set_playing = 0;
 
-		pthread_mutex_lock(&mutex);  /* Wait for playback to be started */
+		pthread_mutex_lock(&mutex); 
 		pthread_mutex_unlock(&mutex);
 		wdprintf(V_DEBUG, "fileplayer", "decode_audio_thread(): Playback has been requested...\n");
 
@@ -294,12 +297,12 @@ static void *decode_audio_thread(void *udata)
 			if (filename) {
 				strncpy(filename, file, len);
 				filename[len] = '\0';
-				set_playing = 1; /* Since the global file pointer points to a filename, we want play that file */
+				set_playing = 1; 
 				wdprintf(V_DEBUG, "fileplayer", "Preparing playback of: %s\n", filename);
 			} else {
 				wdprintf(V_ERROR, "fileplayer", "ERROR: malloc() failed!\n");
 			}
-			free(file); file = NULL; /* Clear the global file pointer/memory */
+			free(file); file = NULL;
 		} else {
 			wdprintf(V_WARNING, "fileplayer", "WARNING: Zero length filename detected!\n");
 		}
@@ -313,7 +316,7 @@ static void *decode_audio_thread(void *udata)
 			const char *tmp = get_file_extension(filename);
 			wdprintf(V_INFO, "fileplayer", "Playing %s...\n", filename);
 			if (tmp) gd = decloader_get_decoder_for_extension(tmp);
-			if (!(gd && gd->identifier)) { /* No decoder found by extension, try mime-type check by data chunk */
+			if (!(gd && gd->identifier)) {
 				wdprintf(V_WARNING, "fileplayer", "No suitable decoder available for extension %s. Trying mime type check.\n", tmp);
 				r = reader_open(filename);
 				if (r && reader_read_bytes(r, 4096)) {
@@ -325,6 +328,7 @@ static void *decode_audio_thread(void *udata)
 				}
 			}
 			if (gd && gd->identifier && !file_player_check_shutdown()) {
+				active_decoder = gd; /* Registro del decodificador actual para control multitrack */
 				wdprintf(V_INFO, "fileplayer", "Selected decoder: %s\n", gd->identifier);
 				if (gd->set_reader_handle) {
 					if (!r) {
@@ -356,17 +360,12 @@ static void *decode_audio_thread(void *udata)
 						ti->channels   = 2;
 						ti->bitrate    = 0;
 
-						if (*gd->get_samplerate)
-							ti->samplerate = (*gd->get_samplerate)();
-						if (*gd->get_channels)
-							ti->channels   = (*gd->get_channels)();
-						if (*gd->get_bitrate)
-							ti->bitrate    = (*gd->get_bitrate)();
-						if (*gd->get_length)
-							ti->length     = (*gd->get_length)();
+						if (*gd->get_samplerate) ti->samplerate = (*gd->get_samplerate)();
+						if (*gd->get_channels) ti->channels   = (*gd->get_channels)();
+						if (*gd->get_bitrate) ti->bitrate    = (size_t)(*gd->get_bitrate)();
+						if (*gd->get_length) ti->length     = (size_t)(*gd->get_length)();
 						if (*gd->get_file_type)
-							strncpy_charset_conv(ti->file_type, (*gd->get_file_type)(),
-												 SIZE_FILE_TYPE-1, 0, charset);
+							strncpy_charset_conv(ti->file_type, (*gd->get_file_type)(), SIZE_FILE_TYPE-1, 0, charset);
 						channels = ti->channels;
 						trackinfo_release_lock(ti);
 					}
@@ -404,12 +403,12 @@ static void *decode_audio_thread(void *udata)
 						if (get_pb_request() == PBRQ_PLAY) audio_set_pause(0);
 
 						if (r && !reader_is_ready(r)) {
-							int check_count = 20, prev_buf_fill = 0;
-							/* Wait for the reader to pre-buffer the requested amount of data (if necessary) */
+							int    check_count = 20;
+							size_t prev_buf_fill = 0;
 							wdprintf(V_DEBUG, "fileplayer", "Prebuffering...\n");
 							event_queue_push(gmu_core_get_event_queue(), GMU_BUFFERING);
 							while (r && !reader_is_ready(r) && !reader_is_eof(r) && get_item_status() == PLAYING && check_count > 0) {
-								int buf_fill = reader_get_cache_fill(r);
+								size_t buf_fill = reader_get_cache_fill(r);
 								if (prev_buf_fill != buf_fill) {
 									prev_buf_fill = buf_fill;
 									check_count = 20;
@@ -433,12 +432,13 @@ static void *decode_audio_thread(void *udata)
 							|| (item_status != STOPPED && audio_buffer_get_fill() > 0) )
 							&& !file_player_check_shutdown()
 						) {
-							int size = 0, br = 0;
+							size_t size = 0;
+							int    br = 0;
 
 							if (seek_second >= 0) {
 								if (get_item_status() == PLAYING && (!gd->set_reader_handle || reader_is_seekable(r))) {
 									if (*gd->seek && (*gd->seek)(seek_second))
-										audio_set_sample_counter(seek_second * ti->samplerate);
+										audio_set_sample_counter((size_t)(seek_second * ti->samplerate));
 								}
 								seek_second = -1;
 							}
@@ -447,7 +447,7 @@ static void *decode_audio_thread(void *udata)
 							}
 							while (ret > 0 && size < BUF_SIZE / 2 && item_status != STOPPED) {
 								ret = (*gd->decode_data)(pcmout+size, BUF_SIZE-size);
-								if (ret > 0) size += ret;
+								if (ret > 0) size += (size_t)ret;
 							}
 							if (ret <= 0) SDL_Delay(50);
 							if (gd->get_current_bitrate) br = (*gd->get_current_bitrate)();
@@ -457,9 +457,9 @@ static void *decode_audio_thread(void *udata)
 									trackinfo_release_lock(ti);
 								}
 							}
-							if (ret == 0 && audio_buffer_get_fill() == 0) { /* EOF while decoding data and no data lef in buffer */
+							if (ret == 0 && audio_buffer_get_fill() == 0) { 
 								break;
-							} else if (ret < 0) { /* Decoder error */
+							} else if (ret < 0) { 
 								wdprintf(V_ERROR, "fileplayer", "Error. Code: %d\n", ret);
 								audio_set_pause(1);
 								break;
@@ -502,12 +502,9 @@ static void *decode_audio_thread(void *udata)
 					(*gd->close_file)();
 				} else {
 					wdprintf(V_DEBUG, "fileplayer", "Unable to open file.\n");
-					event_queue_push_with_parameter(
-						gmu_core_get_event_queue(),
-						GMU_ERROR,
-						GMU_ERROR_CANNOT_OPEN_FILE
-					);
+					event_queue_push_with_parameter(gmu_core_get_event_queue(), GMU_ERROR, GMU_ERROR_CANNOT_OPEN_FILE);
 				}
+				active_decoder = NULL; /* Desregistro del decodificador */
 			}
 			if (get_item_status() == STOPPED) audio_buffer_clear();
 			audio_set_done();
@@ -521,14 +518,9 @@ static void *decode_audio_thread(void *udata)
 		} else {
 			wdprintf(V_DEBUG, "fileplayer", "wrong item status? %d\n", item_status);
 		}
-		if (filename) {
-			free(filename);
-			filename = NULL;
-		}
+		if (filename) { free(filename); filename = NULL; }
 		if (r) reader_close(r);
-		if (gd && gd->set_reader_handle) {
-			(*gd->set_reader_handle)(NULL);
-		}
+		if (gd && gd->set_reader_handle) (*gd->set_reader_handle)(NULL);
 		pthread_mutex_lock(&file_mutex);
 		if (dev_close_asap && !file) audio_device_close();
 		pthread_mutex_unlock(&file_mutex);
@@ -541,7 +533,7 @@ static void *decode_audio_thread(void *udata)
 int file_player_play_file(char *filename, int skip_current, int fade_out_on_skip)
 {
 	if (skip_current && fade_out_on_skip && !audio_get_pause()) {
-		audio_fade_out_step(20); /* Initiate fade-out and decrease volume by 20 % */
+		audio_fade_out_step(20); 
 	} else {
 		/* If skipping the currently playing track has been requested, we
 		 * set the item status to STOPPED, so the playback thread knows
@@ -564,7 +556,7 @@ int file_player_play_file(char *filename, int skip_current, int fade_out_on_skip
  */
 int file_player_seek(long offset)
 {
-	seek_second = audio_get_playtime() / 1000 + offset;
+	seek_second = (long int)audio_get_playtime() / 1000 + offset;
 	if (seek_second < 0) seek_second = 0;
 	return 0;
 }
@@ -599,4 +591,21 @@ int file_player_request_playback_state_change(PB_Status_Request request)
 			break;
 	}
 	return res;
+}
+
+/* --- Multitrack extension --- */
+int file_player_next_subtrack(void)
+{
+	if (active_decoder && active_decoder->next_subtrack) {
+		return active_decoder->next_subtrack();
+	}
+	return 0;
+}
+
+int file_player_prev_subtrack(void)
+{
+	if (active_decoder && active_decoder->prev_subtrack) {
+		return active_decoder->prev_subtrack();
+	}
+	return 0;
 }
