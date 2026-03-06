@@ -90,7 +90,7 @@ static void lowshelf_process(short *samples, int count) {
 extern "C" void end_of_track() { g_playing = 0; }
 
 /* --- BÚFER CIRCULAR --- */
-#define GSF_BUFFER_SIZE (1024 * 512)
+#define GSF_BUFFER_SIZE (1024 * 512 * 2)
 static char gsf_buffer[GSF_BUFFER_SIZE];
 static int buf_read_pos = 0, buf_write_pos = 0, buf_filled_bytes = 0;
 static pthread_mutex_t buf_mutex = PTHREAD_MUTEX_INITIALIZER;
