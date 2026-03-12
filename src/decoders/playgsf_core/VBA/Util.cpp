@@ -400,7 +400,7 @@ bool utilWriteBMPFile(const char *fileName, int w, int h, u8 *pix)
   return true;
 }
 */
-static int utilReadInt2(FILE *f)
+static int __attribute__((unused)) utilReadInt2(FILE *f)
 {
   int res = 0;
   int c = fgetc(f);
@@ -413,7 +413,7 @@ static int utilReadInt2(FILE *f)
   return c + (res<<8);
 }
 
-static int utilReadInt3(FILE *f)
+static int __attribute__((unused)) utilReadInt3(FILE *f)
 {
   int res = 0;
   int c = fgetc(f);
@@ -596,10 +596,10 @@ GSF_FILE decompressGSF(const char * file, int libnum=1)
 	char libtag[0x40];
 	char libname[0x8];
 	unsigned int filesize;
-    unsigned int header;
-    unsigned int reserved;
-    unsigned int program;
-    unsigned int ccrc;
+    unsigned int header = 0;
+    unsigned int reserved = 0;
+    unsigned int program = 0;
+    unsigned int ccrc = 0;
     unsigned long decompsize=12;
 	unsigned int tmpval;
 	FILE *f;
@@ -661,7 +661,7 @@ GSF_FILE decompressGSF(const char * file, int libnum=1)
 		  {
 			  fclose(f);
 #ifdef LINUX
-			  printf("1: Malloc failed %d\n", reserved);
+			  printf("1: Malloc failed %lu\n", (unsigned long)reserved);
 #endif
 			  return gsffile;
 		  }
@@ -675,7 +675,7 @@ GSF_FILE decompressGSF(const char * file, int libnum=1)
 			{
 				fclose(f);
 #ifdef LINUX
-			  printf("2: Malloc failed %d\n", program);
+			  printf("2: Malloc failed %lu\n", (unsigned long)program);
 #endif
 				return gsffile;
 			}
@@ -698,7 +698,7 @@ GSF_FILE decompressGSF(const char * file, int libnum=1)
 				fclose(f);
 				free(compbuf);
 #ifdef LINUX
-			  printf("3: Malloc failed %d\n", decompsize);
+			  printf("3: Malloc failed %lu\n", (unsigned long)decompsize);
 #endif
 				return gsffile;
 			}
@@ -727,7 +727,7 @@ GSF_FILE decompressGSF(const char * file, int libnum=1)
 				free(compbuf);
 #ifdef LINUX
 				perror("malloc");
-			  printf("4: Malloc failed %d\n", decompsize);
+			  printf("4: Malloc failed %lu\n", (unsigned long)decompsize);
 #endif
 				return gsffile;
 			}
@@ -788,6 +788,25 @@ GSF_FILE decompressGSF(const char * file, int libnum=1)
 
 #define MAX_GSFLIB 11
 
+static bool build_lib_path(char *out, size_t out_size, const char *base, const char *name)
+{
+    size_t b, n;
+    if (!out || !base || !name || out_size == 0) return false;
+    b = strlen(base);
+    n = strlen(name);
+    if (b + 1 + n + 1 > out_size) return false;
+#ifdef LINUX
+    memcpy(out, base, b);
+    out[b] = '/';
+#else
+    memcpy(out, base, b);
+    out[b] = '\\';
+#endif
+    memcpy(out + b + 1, name, n);
+    out[b + 1 + n] = '\0';
+    return true;
+}
+
 bool utildecompGSF(const char * file)
 {
     unsigned int offset, size;
@@ -814,14 +833,13 @@ bool utildecompGSF(const char * file)
     // Intentar cargar la librería base _lib
     memset(libtag, 0, sizeof(libtag));
     if (!psftag_raw_getvar(gsffile.psftag, "_lib", libtag, sizeof(libtag) - 1) && strlen(libtag) > 0) {
+                    if (!build_lib_path(filename, sizeof(filename), tempname, libtag)) {
+                        fprintf(stderr, "Library path too long: %s / %s\n", tempname, libtag);
+                        free(uncompbuf);
+                        return false;
+                    }
 
-#ifdef LINUX
-        sprintf(filename, "%s/%s", tempname, libtag);
-#else
-        sprintf(filename, "%s\\%s", tempname, libtag);
-#endif
-
-        if (access(filename, R_OK) != 0) {
+                    if (access(filename, R_OK) != 0) {
             fprintf(stderr, "Library file not found: %s\n", filename);
             free(uncompbuf);
             return false;
@@ -852,12 +870,11 @@ bool utildecompGSF(const char * file)
             for (int j = 0; j < i; j++) {
                 if (!psftag_raw_getvar(gsflib[j].psftag, libname, libtag, sizeof(libtag) - 1)
                     && strlen(libtag) > 0) {
-
-#ifdef LINUX
-                    sprintf(filename, "%s/%s", tempname, libtag);
-#else
-                    sprintf(filename, "%s\\%s", tempname, libtag);
-#endif
+                    if (!build_lib_path(filename, sizeof(filename), tempname, libtag)) {
+                        fprintf(stderr, "Library path too long: %s / %s\n", tempname, libtag);
+                        free(uncompbuf);
+                        return false;
+                    }
 
                     if (access(filename, R_OK) != 0) {
                         fprintf(stderr, "Library file not found: %s\n", filename);

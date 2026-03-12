@@ -91,6 +91,7 @@ extern "C" void end_of_track() { g_playing = 0; }
 
 /* --- BÚFER CIRCULAR --- */
 #define GSF_BUFFER_SIZE (1024 * 512 * 2)
+#define GSF_PREBUFFER_BYTES 4096
 static char gsf_buffer[GSF_BUFFER_SIZE];
 static int buf_read_pos = 0, buf_write_pos = 0, buf_filled_bytes = 0;
 static pthread_mutex_t buf_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -112,6 +113,16 @@ typedef struct {
 static GsfTags tags_metaonly; 
 static GsfTags tags_current;  
 
+static void safe_copy_tag(char *dst, size_t dst_size, const char *src)
+{
+    if (!dst || dst_size == 0) return;
+    if (!src) { dst[0] = '\0'; return; }
+    size_t n = strlen(src);
+    if (n >= dst_size) n = dst_size - 1;
+    memcpy(dst, src, n);
+    dst[n] = '\0';
+}
+
 static void gsf_read_tags(const char *filename, GsfTags *tags) {
     tags->title[0] = '\0';
     tags->artist[0] = '\0';
@@ -125,15 +136,15 @@ static void gsf_read_tags(const char *filename, GsfTags *tags) {
         if (psftag_readfromfile(tag_buffer, filename) >= 0) {
             char tmp[256];
             if (!psftag_getvar(tag_buffer, "title", tmp, sizeof(tmp)-1)) 
-                strncpy(tags->title, tmp, sizeof(tags->title)-1);
+                safe_copy_tag(tags->title, sizeof(tags->title), tmp);
             if (!psftag_getvar(tag_buffer, "artist", tmp, sizeof(tmp)-1)) 
-                strncpy(tags->artist, tmp, sizeof(tags->artist)-1);
+                safe_copy_tag(tags->artist, sizeof(tags->artist), tmp);
             if (!psftag_getvar(tag_buffer, "game", tmp, sizeof(tmp)-1)) 
-                strncpy(tags->album, tmp, sizeof(tags->album)-1);
+                safe_copy_tag(tags->album, sizeof(tags->album), tmp);
             if (!psftag_getvar(tag_buffer, "track", tmp, sizeof(tmp)-1)) 
-                strncpy(tags->tracknr, tmp, sizeof(tags->tracknr)-1);
+                safe_copy_tag(tags->tracknr, sizeof(tags->tracknr), tmp);
             if (!psftag_getvar(tag_buffer, "year", tmp, sizeof(tmp)-1)) 
-                strncpy(tags->date, tmp, sizeof(tags->date)-1);
+                safe_copy_tag(tags->date, sizeof(tags->date), tmp);
         }
         free(tag_buffer); 
     }
@@ -151,7 +162,7 @@ static void gsf_read_tags(const char *filename, GsfTags *tags) {
         strcpy(temp, "Pista de GBA (Sin Tags)");
     }
     
-    strncpy(tags->custom_list_name, temp, sizeof(tags->custom_list_name)-1);
+    safe_copy_tag(tags->custom_list_name, sizeof(tags->custom_list_name), temp);
 }
 
 /* --- INTERCEPTAR AUDIO --- */
@@ -182,11 +193,16 @@ extern "C" void writeSound(void) {
     }
     if (!emu_running) { pthread_mutex_unlock(&buf_mutex); return; }
 
-    for (int i = 0; i < bytes_to_write; i++) {
-        gsf_buffer[buf_write_pos] = data[i];
-        buf_write_pos = (buf_write_pos + 1) % GSF_BUFFER_SIZE;
+    {
+        int first_chunk = GSF_BUFFER_SIZE - buf_write_pos;
+        if (first_chunk > bytes_to_write) first_chunk = bytes_to_write;
+        memcpy(gsf_buffer + buf_write_pos, data, first_chunk);
+        if (bytes_to_write > first_chunk) {
+            memcpy(gsf_buffer, data + first_chunk, bytes_to_write - first_chunk);
+        }
+        buf_write_pos = (buf_write_pos + bytes_to_write) % GSF_BUFFER_SIZE;
+        buf_filled_bytes += bytes_to_write;
     }
-    buf_filled_bytes += bytes_to_write;
     pthread_cond_signal(&buf_cond);
     pthread_mutex_unlock(&buf_mutex);
 
@@ -214,6 +230,7 @@ static const char *get_file_extensions(void) { return ".gsf;.minigsf"; }
 
 static int open_file(const char *filename) {
     strncpy(current_rom_path, filename, sizeof(current_rom_path)-1);
+    current_rom_path[sizeof(current_rom_path)-1] = '\0';
     
     gsf_read_tags(filename, &tags_current);
     
@@ -268,16 +285,22 @@ static int decode_data(char *target, size_t max_size) {
     if (!emu_running && buf_filled_bytes == 0) return 0;
 
     pthread_mutex_lock(&buf_mutex);
-    while (emu_running && buf_filled_bytes == 0) {
+    while (emu_running && buf_filled_bytes < GSF_PREBUFFER_BYTES) {
         pthread_cond_wait(&buf_cond, &buf_mutex);
     }
+
     int bytes_to_read = (buf_filled_bytes < (int)max_size) ? buf_filled_bytes : (int)max_size;
 
-    for (int i = 0; i < bytes_to_read; i++) {
-        target[i] = gsf_buffer[buf_read_pos];
-        buf_read_pos = (buf_read_pos + 1) % GSF_BUFFER_SIZE;
+    if (bytes_to_read > 0) {
+        int first_chunk = GSF_BUFFER_SIZE - buf_read_pos;
+        if (first_chunk > bytes_to_read) first_chunk = bytes_to_read;
+        memcpy(target, gsf_buffer + buf_read_pos, first_chunk);
+        if (bytes_to_read > first_chunk) {
+            memcpy(target + first_chunk, gsf_buffer, bytes_to_read - first_chunk);
+        }
+        buf_read_pos = (buf_read_pos + bytes_to_read) % GSF_BUFFER_SIZE;
+        buf_filled_bytes -= bytes_to_read;
     }
-    buf_filled_bytes -= bytes_to_read;
     pthread_cond_signal(&buf_cond);
     pthread_mutex_unlock(&buf_mutex);
 
